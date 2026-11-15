@@ -1,0 +1,31 @@
+# Profile production: tắt tài liệu API công khai
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# Secret và địa chỉ hạ tầng bắt buộc đến từ biến môi trường (Vault/K8s Secret), KHÔNG có giá trị mặc định:
+# thiếu biến nào thì ứng dụng không khởi động được.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER}
+
+app:
+  security:
+    cors-allowed-origins: ${APP_CORS_ORIGINS}
+  keycloak:
+    admin:
+      base-url: ${KEYCLOAK_BASE_URL}
+      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+
+server:
+  # Chạy sau reverse proxy/ingress (TLS kết thúc tại proxy): lấy IP/scheme thật từ X-Forwarded-* cho audit log
+  forward-headers-strategy: framework

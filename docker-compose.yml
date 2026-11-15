@@ -1,0 +1,59 @@
+# LOCAL ONLY. Secret lấy từ file .env (sao chép từ .env.example). Production: xem README, không dùng file này.
+services:
+  payment-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: payment
+      POSTGRES_USER: payment
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?Thiếu PAYMENT_DB_PASSWORD - sao chép .env.example thành .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment -d payment"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  keycloak-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Thiếu KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    # LOCAL ONLY: start-dev (HTTP). Production dùng `start --optimized` + TLS (proxy) + hostname cố định.
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Thiếu KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Thiếu KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      # Được thay vào ${...} tương ứng trong keycloak/bank-realm.json khi import
+      KC_BATCH_CLIENT_SECRET: ${KC_BATCH_CLIENT_SECRET:?Thiếu KC_BATCH_CLIENT_SECRET}
+      KC_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET:?Thiếu KC_ADMIN_CLIENT_SECRET}
+    ports:
+      - "8180:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    volumes:
+      # Realm export sẽ được thêm ở Bước 2
+      - ./keycloak:/opt/keycloak/data/import:ro
+
+volumes:
+  payment-db-data:
+  keycloak-db-data:

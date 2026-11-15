@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/payment}
+    username: ${DB_USERNAME:payment}
+    password: ${DB_PASSWORD:payment_local_pw}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak realm "bank" (docker-compose: host port 8180)
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8180/realms/bank}
+  flyway:
+    enabled: true
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
+server:
+  port: 8080
+
+springdoc:
+  swagger-ui:
+    oauth:
+      client-id: bank-web
+      use-pkce-with-authorization-code-grant: true
+      scopes: openid payment:read
+
+app:
+  security:
+    # Token phải có aud chứa giá trị này (Audience mapper trong Keycloak)
+    audience: ${APP_SECURITY_AUDIENCE:payment-service}
+    # Danh sách origin được phép gọi API từ trình duyệt (phân tách bằng dấu phẩy)
+    cors-allowed-origins: ${APP_CORS_ORIGINS:http://localhost:3000}
+  payment:
+    # Hạn mức theo loại tiền (loại không có ở đây bị từ chối). Giá trị mẫu - chỉnh theo chính sách của đơn vị.
+    limits:
+      VND: { per-transaction: 500000000, daily: 2000000000 }
+      USD: { per-transaction: 20000, daily: 100000 }
+  keycloak:
+    # Admin REST API (quản lý user/role) - client bank-admin-api, quyền tối thiểu trên realm-management
+    admin:
+      base-url: ${KEYCLOAK_BASE_URL:http://localhost:8180}
+      realm: ${KEYCLOAK_REALM:bank}
+      client-id: bank-admin-api
+      client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:dev-only-change-me-admin-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

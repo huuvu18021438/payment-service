@@ -1,0 +1,23 @@
+# Dùng kèm docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.app.yml up -d payment-service
+# LƯU Ý (chưa kiểm chứng): claim `iss` trong token do SPA lấy từ localhost:8180 phải khớp KEYCLOAK_ISSUER,
+# trong khi container không truy cập được localhost của máy host. Cần đặt hostname Keycloak cố định
+# (ví dụ keycloak:8180 + hosts file) hoặc chạy app trên host bằng `mvnw spring-boot:run`.
+services:
+  payment-service:
+    image: ghcr.io/huuvu18021438/payment-service:latest
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    environment:
+      DB_URL: jdbc:postgresql://payment-db:5432/payment
+      DB_USERNAME: payment
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/bank
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET}
+      APP_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8080:8080"
