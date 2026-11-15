@@ -92,6 +92,13 @@ Không có token → `401`; sai role/scope → `403`.
 - `PaymentSecurityWebMvcTest` – 401/403/2xx theo role + scope (không cần Docker)
 - `PaymentFlowIntegrationTest` – Postgres + Keycloak thật (Testcontainers, **cần Docker**), token thật
 
+## CI/CD (GitHub Actions)
+- Mọi push/PR: job `build-test` chạy `./mvnw verify`. Push vào `main`: thêm job `image` (đẩy GHCR) và `deploy`.
+- `deploy` chạy trên **self-hosted runner** cài trên máy có Docker Desktop (đang mở): ghi `.env` từ GitHub Secrets
+  (`PAYMENT_DB_PASSWORD`, `KEYCLOAK_DB_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_BATCH_CLIENT_SECRET`, `KC_ADMIN_CLIENT_SECRET`),
+  chạy `docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build` rồi chờ `/actuator/health` = UP.
+- Giá trị secret phải khớp volume DB/Keycloak đã tồn tại (Postgres và realm import chỉ đọc ở lần khởi tạo đầu).
+
 ## Production (tóm tắt – chi tiết xem plan hardening)
 
 - `SPRING_PROFILES_ACTIVE=prod` tắt Swagger/OpenAPI.

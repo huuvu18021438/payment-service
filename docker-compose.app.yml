@@ -1,11 +1,12 @@
 # Dùng kèm docker-compose.yml:
-#   docker compose -f docker-compose.yml -f docker-compose.app.yml up -d payment-service
-# LƯU Ý (chưa kiểm chứng): claim `iss` trong token do SPA lấy từ localhost:8180 phải khớp KEYCLOAK_ISSUER,
-# trong khi container không truy cập được localhost của máy host. Cần đặt hostname Keycloak cố định
-# (ví dụ keycloak:8180 + hosts file) hoặc chạy app trên host bằng `mvnw spring-boot:run`.
+#   docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build
+# Build từ source tại máy (CD của GitHub Actions chạy lệnh này trên self-hosted runner).
+# iss trong token (lấy qua trình duyệt) là http://localhost:8180/realms/bank, nên KEYCLOAK_ISSUER giữ giá trị đó;
+# còn khoá công khai (JWKS) app lấy qua mạng nội bộ compose bằng KEYCLOAK_JWK_SET_URI.
 services:
   payment-service:
-    image: ghcr.io/huuvu18021438/payment-service:latest
+    build: .
+    image: payment-service:local
     depends_on:
       payment-db:
         condition: service_healthy
@@ -15,7 +16,8 @@ services:
       DB_URL: jdbc:postgresql://payment-db:5432/payment
       DB_USERNAME: payment
       DB_PASSWORD: ${PAYMENT_DB_PASSWORD}
-      KEYCLOAK_ISSUER: http://keycloak:8080/realms/bank
+      KEYCLOAK_ISSUER: http://localhost:8180/realms/bank
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/bank/protocol/openid-connect/certs
       KEYCLOAK_BASE_URL: http://keycloak:8080
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KC_ADMIN_CLIENT_SECRET}
       APP_CORS_ORIGINS: http://localhost:3000

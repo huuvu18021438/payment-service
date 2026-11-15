@@ -67,10 +67,15 @@ public class SecurityConfig {
     @Bean
     JwtDecoder jwtDecoder(
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
-            @Value("${app.security.audience}") String audience) {
+            @Value("${app.security.audience}") String audience,
+            @Value("${KEYCLOAK_JWK_SET_URI:}") String jwkSetUri) {
         // SupplierJwtDecoder: chỉ gọi Keycloak (openid-configuration) ở request đầu tiên, không phải lúc tạo bean.
+        // Nếu đặt KEYCLOAK_JWK_SET_URI (app chạy trong container, không với tới issuer của trình duyệt): lấy khoá từ
+        // URI đó nhưng vẫn kiểm tra claim iss đúng bằng issuer.
         return new SupplierJwtDecoder(() -> {
-            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuer).build();
+            NimbusJwtDecoder decoder = jwkSetUri.isBlank()
+                    ? NimbusJwtDecoder.withIssuerLocation(issuer).build()
+                    : NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
             OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
                     JwtValidators.createDefaultWithIssuer(issuer),
                     new AudienceValidator(audience));

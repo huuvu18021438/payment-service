@@ -15,6 +15,48 @@ jobs:
         with: { distribution: temurin, java-version: '25', cache: maven }
       - run: ./mvnw -B verify
 
+  deploy:
+    # CD: chạy trên self-hosted runner (máy có Docker Desktop), build và chạy lại stack từ source
+    needs: build-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: self-hosted
+    concurrency: deploy-local
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write .env from secrets
+        shell: powershell
+        env:
+          PAYMENT_DB_PASSWORD: ${{ secrets.PAYMENT_DB_PASSWORD }}
+          KEYCLOAK_DB_PASSWORD: ${{ secrets.KEYCLOAK_DB_PASSWORD }}
+          KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
+          KC_BATCH_CLIENT_SECRET: ${{ secrets.KC_BATCH_CLIENT_SECRET }}
+          KC_ADMIN_CLIENT_SECRET: ${{ secrets.KC_ADMIN_CLIENT_SECRET }}
+        run: |
+          $lines = 'PAYMENT_DB_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','KC_BATCH_CLIENT_SECRET','KC_ADMIN_CLIENT_SECRET' |
+            ForEach-Object { "$_=$([Environment]::GetEnvironmentVariable($_))" }
+          [IO.File]::WriteAllLines("$PWD\.env", $lines)
+      - name: Build and start stack
+        shell: powershell
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.app.yml up -d --build
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Wait for health
+        shell: powershell
+        run: |
+          for ($i = 0; $i -lt 40; $i++) {
+            try {
+              $r = Invoke-RestMethod http://localhost:8080/actuator/health -TimeoutSec 3
+              if ($r.status -eq 'UP') { Write-Host 'payment-service UP'; exit 0 }
+            } catch {}
+            Start-Sleep -Seconds 5
+          }
+          docker compose -f docker-compose.yml -f docker-compose.app.yml logs --tail 80 payment-service
+          exit 1
+      - name: Remove .env
+        if: always()
+        shell: powershell
+        run: Remove-Item -Force .env -ErrorAction SilentlyContinue
+
   image:
     needs: build-test
     if: github.ref == 'refs/heads/main'
