@@ -20,6 +20,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.SupplierJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -67,12 +68,15 @@ public class SecurityConfig {
     JwtDecoder jwtDecoder(
             @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}") String issuer,
             @Value("${app.security.audience}") String audience) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuer).build();
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(issuer),
-                new AudienceValidator(audience));
-        decoder.setJwtValidator(validator);
-        return decoder;
+        // SupplierJwtDecoder: chỉ gọi Keycloak (openid-configuration) ở request đầu tiên, không phải lúc tạo bean.
+        return new SupplierJwtDecoder(() -> {
+            NimbusJwtDecoder decoder = NimbusJwtDecoder.withIssuerLocation(issuer).build();
+            OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
+                    JwtValidators.createDefaultWithIssuer(issuer),
+                    new AudienceValidator(audience));
+            decoder.setJwtValidator(validator);
+            return decoder;
+        });
     }
 
     @Bean
